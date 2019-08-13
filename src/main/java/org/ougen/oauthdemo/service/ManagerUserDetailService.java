@@ -20,7 +20,6 @@ public class ManagerUserDetailService {
     private PasswordEncoder passwordEncoder;
 
     @Bean
-    @Order(1)
     public UserDetailsService userDetailsService(){
         InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
         manager.createUser(User.withUsername("user_1").password(passwordEncoder.encode("123456")).authorities("USER").build());

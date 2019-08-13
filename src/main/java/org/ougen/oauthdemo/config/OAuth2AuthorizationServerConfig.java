@@ -2,12 +2,12 @@ package org.ougen.oauthdemo.config;
 
 import org.ougen.oauthdemo.redis.MyRedisTokenStore;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
+
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
+
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.core.userdetails.User;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.config.annotation.web.configurers.Aut
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
 import org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+
 
 /**
  * @author OuGen
@@ -33,6 +33,15 @@ public class OAuth2AuthorizationServerConfig {
         @Override
         public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
             resources.resourceId("hello").stateless(true);
+        }
+
+        @Override
+        public void configure(HttpSecurity http) throws Exception {
+            http.authorizeRequests()
+                    .antMatchers("/code/sms")
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated();
         }
     }
 
@@ -48,24 +57,41 @@ public class OAuth2AuthorizationServerConfig {
         @Autowired
         private AuthenticationManager authenticationManager;
 
+        @Autowired
+        private UserDetailsService userDetailsService;
+
         @Override
         public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-            clients.inMemory().withClient("client_1")
+            clients.inMemory()
+                    .withClient("client_1")
                     .authorizedGrantTypes("password","refresh_token")
                     .scopes("read")
                     .authorities("client")
-                    .secret(passwordEncoder.encode("123456"));
+                    .secret(passwordEncoder.encode("123456"))
+                    .and()
+                    .withClient("client_2")
+                    .authorizedGrantTypes("authorization_code","refresh_token")
+                    .scopes("read")
+                    .authorities("client")
+                    .secret(passwordEncoder.encode("123456"))
+                    .redirectUris("www.baidu.com")
+                    .accessTokenValiditySeconds(1000)
+                    .refreshTokenValiditySeconds(50000);
         }
         @Override
         public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
             endpoints
-                    .tokenStore(new MyRedisTokenStore(redisConnectionFactory)).authenticationManager(authenticationManager);
+                    .tokenStore(new RedisTokenStore(redisConnectionFactory)).authenticationManager(authenticationManager)
+                    .userDetailsService(userDetailsService);
         }
 
         @Override
         public void configure(AuthorizationServerSecurityConfigurer oauthServer) throws Exception {
-            //允许表单认证
-            oauthServer.allowFormAuthenticationForClients();
+            oauthServer
+                    .realm("oauth2-resources")
+                    .tokenKeyAccess("permitAll()")
+                    .checkTokenAccess("isAuthenticated()")
+                    .allowFormAuthenticationForClients();
         }
 
     }
